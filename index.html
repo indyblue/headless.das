@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>jQuery injection into webview preload</title>
+	<style>
+		#webview {
+			position: absolute;
+			width: 100%;
+			height: 100%;
+		}
+
+		.hide {
+			display: none;
+		}
+	</style>
+</head>
+
+<body style="overflow:hidden;">
+	<input type="checkbox" id="wv-debug" />
+	<button onclick="wvToggleDev()">Toggle Webview Dev Tools</button>
+	<span id="exec-controls" class="hide">
+		<button id='exec-retry'>Retry</button>
+		<button id='exec-skip'>Skip</button>
+		<button id='exec-cancel'>Cancel</button>
+		<br/>
+		<button id='exec-edit'>Edit</button>
+		<textarea id='exec-edit-ta'></textarea>
+	</span>
+	<br/>
+	<span id="exec-label"></span>
+	<webview id="webview" src="http://google.com" useragent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36"></webview>
+	<script>
+		'use strict';
+		//navigator.userAgent
+		function ci(x) { //clean insert
+			let xc = JSON.stringify(x);
+			return xc;
+		}
+
+		const fnsnoops = `
+			const xhrSnoop = (callback) => {
+				var isInit = (typeof XMLHttpRequest.qwerCb !== 'undefined');
+				XMLHttpRequest.qwerCb = callback;
+				
+				if(isInit) return;
+				if(XMLHttpRequest.prototype.addSpy===true) return;
+				XMLHttpRequest.prototype.addSpy = true;
+				var oldSend = XMLHttpRequest.prototype.send;
+				XMLHttpRequest.prototype.send = function(data){
+					this.qwerData = data;
+					return oldSend.apply(this, arguments);
+				}
+				var oldOpen = XMLHttpRequest.prototype.open;
+				XMLHttpRequest.prototype.open = function(method, url){
+					var retval = oldOpen.apply(this, arguments);
+					XMLHttpRequest.qwerCb(this, method, url);
+					return retval;
+				}
+			}
+			const fetchSnoop = (callback) => {
+				if(typeof window.fetch.qwerCb !=='undefined') 
+					window.fetch.qwerCb = callback;
+				else {
+					var qfetch = window.fetch;
+					window.fetch = function(req, init) {
+						return qfetch.apply(window, arguments).then(function(resp) {
+							if(typeof window.fetch.qwerCb==='function')
+								window.fetch.qwerCb(resp, req, init);
+							return resp;
+						});
+					};
+					window.fetch.qwerCb = callback;
+				}
+			};
+		`;
+		const fngetel = `
+			const getel = sel => {
+				let el = document.querySelector(sel);
+				if (el === null) {
+					let iframes = document.querySelectorAll('iframe');
+					for (var i = 0; i < iframes.length; i++) {
+						try {
+							let idoc = iframes[i].contentDocument;
+							el = idoc.querySelector(sel);
+							if (el !== null) break;
+						} catch (e) { }
+					}
+				}
+				if (el === null) {
+					e('no ' + sel);
+					return el;
+				}
+				return el;
+			};
+		`;
+		const fnaction = `
+			const action = (prop, sel, value) => {
+				let el = getel(sel)
+				if (prop === null || prop === '') {
+					//do nothing, just return element
+				} else if (typeof el[prop] === 'string') {
+					el[prop] = value;
+					if (prop === 'value') {
+						let events = ['input', 'change'];
+						events.forEach(e => {
+							var evnt = new Event(e);
+							el.dispatchEvent(evnt);
+						});
+					}
+				} else if (typeof el[prop] === 'function') {
+					if (typeof value !== 'undefined' && value != null) {
+						el[prop](value);
+					} else el[prop]();
+				} else {
+					e(sel + ' - problem with prop [' + prop + '] value (' + value + ')');
+				}
+				return el;
+			};
+		`;
+		const fnMainScript = s => `
+			new Promise((r, e) => {
+				try {
+					console.log('starting script');
+					${ fnsnoops}
+					${ fngetel}
+					${ fnaction}
+					${ s}
+					setTimeout(x=> e('timeout'), 8000);
+				} catch (err) {
+					e('caught',err);
+				}
+			});
+		`;
+		const fnTestScript = a => `
+			new Promise((r, e) => {
+				try {
+					console.log('starting test');
+					${ fngetel}
+					${ a.map(s => `getel(${ci(s)})`).join('\n')}
+					r('success');
+				} catch (err) {
+					e('caught',err);
+				}
+			});
+		`;
+
+		let w = document.querySelector('#webview');
+		function wvToggleDev() {
+			if (w.isDevToolsOpened()) w.closeDevTools();
+			else w.openDevTools();
+		}
+		let eDebug = document.querySelector('#wv-debug');
+		var dbgr = '';
+		var fnDebugChange = e => {
+			var wvdebug = eDebug.matches(':checked');
+			if (wvdebug) {
+				w.addEventListener('dom-ready', () => w.openDevTools());
+				dbgr = 'debugger;\n'
+			}
+		};
+		eDebug.addEventListener('change', fnDebugChange);
+		fnDebugChange();
+
+		let eCtls = document.querySelector('#exec-controls');
+		let eRetry = document.querySelector('#exec-retry');
+		let eSkip = document.querySelector('#exec-skip');
+		let eCancel = document.querySelector('#exec-cancel');
+		let eEdit = document.querySelector('#exec-edit');
+		let eEditTa = document.querySelector('#exec-edit-ta');
+		let eLabel = document.querySelector('#exec-label');
+
+		let labelClearHandle = null;
+	</script>
+	<script>
+		'use strict';
+		console.log('start');
+		function wexec(obj) {
+			if (typeof obj === 'string') obj = { qs: [], s: obj };
+
+			console.log('script');
+			let sLabel = obj.s.replace(/\n/g, ' ').trim().substr(0, 80);
+			if (labelClearHandle != null) clearTimeout(labelClearHandle);
+			eLabel.textContent = sLabel;
+
+			let wscript = fnMainScript(obj.s);
+			let wc = w.getWebContents();
+			let fnExecTest = (res, err) => {
+				let fnSelf = x => fnExecTest(res, err);
+				var pr = Promise.resolve();
+				if (obj.qs.length) {
+					let tscript = fnTestScript(obj.qs);
+					pr = wc.executeJavaScript(dbgr + tscript);
+				}
+				return pr.then(x => {
+					eLabel.textContent = sLabel;
+					fnExecMain(res, err);
+				}).catch(x => {
+					eLabel.textContent = 'testing for ' + sLabel;
+					setTimeout(fnSelf, 1000)
+					eCtls.classList.remove('hide');
+					eRetry.onclick = fnSelf;
+					eSkip.onclick = () => res(x);
+					eCancel.onclick = () => err(x);
+				});
+			};
+
+			let fnExecMain = (res, err) => {
+				let fnSelf = x => fnExecMain(res, err);
+				wc.executeJavaScript(dbgr + wscript)
+					.then(x => {
+						eCtls.classList.add('hide');
+						console.log(wscript, x);
+						res(x);
+						labelClearHandle = setTimeout(x => {
+							eLabel.textContent = '';
+							labelClearHandle = null;
+						}, 2000);
+					}, x => {
+						eLabel.textContent = sLabel;
+						eEditTa.value = wscript;
+						eEdit.onclick = () => {
+							wscript = eEditTa.value;
+							fnSelf();
+						};
+						eCtls.classList.remove('hide');
+						eRetry.onclick = fnSelf;
+						eSkip.onclick = () => res(x);
+						eCancel.onclick = () => err(x);
+					});
+			};
+			return new Promise((res, err) => {
+				fnExecTest(res, err);
+			});
+		};
+		function wload(url) {
+			console.log('load');
+			w.loadURL(url);
+			return wready();
+		};
+		function wready(delay) {
+			console.log('begin winReady wait ' + delay);
+			if (typeof delay === 'undefined' || isNaN(delay)) delay = 1000;
+			if (delay < 1000) delay *= 1000;
+			let wc = w.getWebContents();
+			let retval = new Promise((r, e) => {
+				wc.once('did-finish-load', r);
+				wc.once('did-fail-load', x => e('did-fail-load'));
+				let id = setTimeout(x => e('timeout 15s'), 15000);
+				return id;
+			})
+				.catch(x => {
+					console.log('winReady error: ', x);
+				})
+				.then(id => {
+					console.log('begin winReady wait delay ' + delay);
+					clearTimeout(id);
+					return new Promise((r, e) => {
+						setTimeout(x => {
+							console.log('end winReady wait ' + delay);
+							r();
+						}, delay);
+					});
+				});
+			return retval;
+		};
+	</script>
+</body>
+
+</html>
