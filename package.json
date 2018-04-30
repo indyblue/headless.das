@@ -4,8 +4,17 @@
   "description": "use electron for headless browsing",
   "main": "headless.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "electron .",
+    "test": "electron --inspect --debug-brk .",
+    "build": "electron-builder install-app-deps"
+  },
+  "devDependencies": {
+    "electron": "^1.8.6",
+    "electron-builder": "^19.55.3"
   },
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "moment": "^2.22.1"
+  }
 }

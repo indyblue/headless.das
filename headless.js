@@ -1,3 +1,5 @@
+const fs = require('fs');
+const ptool = require('path');
 const electron = require('electron');
 const { app, BrowserWindow } = electron;
 const { WebContents } = process.atomBinding('web_contents');
@@ -11,7 +13,7 @@ function ci(x) { //clean insert
 	return xc;
 }
 
-module.exports = function (url) {
+function Headless(url) {
 	const myEmitter = new MyEmitter();
 	let t = this;
 	t.T = function (a, b) {
@@ -97,8 +99,32 @@ module.exports = function (url) {
 			t.start(url, cb);
 		});
 	};
+
+
 }
 
+Headless.jsonRead = function(fname, isj) {
+	let dirname = ptool.dirname(require.main.filename);
+	if(typeof isj==='undefined') isj=true;
+	let fpath = fname;
+	if(!ptool.isAbsolute(fpath))
+		fpath = ptool.join(dirname, fname);
+	let json = fs.readFileSync(fpath).toString();
+	if(isj) json = JSON.parse(json);
+	return json;
+};
+Headless.jsonWrite = function(fname, data) {
+	let dirname = ptool.dirname(require.main.filename);
+	let fpath = fname;
+	if(!ptool.isAbsolute(fpath))
+		fpath = ptool.join(dirname, fname);
+	if(typeof data !=='string')
+		data = JSON.stringify(data, null, 3);
+	fs.writeFileSync(fpath, data);
+	return true;
+};
+
+module.exports = Headless;
 let rxWait = /^wait-(\d+)$/;
 Promise.prototype.wcThen = function (wc, script, i, debug = false) {
 	if (typeof i === 'undefined') i = -1
