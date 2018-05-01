@@ -40,7 +40,7 @@ function Headless(url) {
 
 	app.once('ready', x => {
 		let win = new BrowserWindow({ width: 800, height: 600, show: false });
-		win.loadURL(`file://${__dirname}/index.html`)
+		win.loadURL(`file://${__dirname}/headless.html`)
 		win.on('closed', () => { win = null; });
 		const wc = win.webContents;
 
