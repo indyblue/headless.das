@@ -12,6 +12,10 @@
     "electron": "^1.8.6",
     "electron-builder": "^19.55.3"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/indyblue/headless.das"
+  },
   "author": "",
   "license": "MIT",
   "dependencies": {

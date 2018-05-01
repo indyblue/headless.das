@@ -16,11 +16,13 @@ function ci(x) { //clean insert
 function Headless(url) {
 	const myEmitter = new MyEmitter();
 	let t = this;
-	t.T = function (a, b) {
-		return {
+	t.T = function (a, b, c = null) {
+		let obj = {
 			qs: a,
 			get s() { return b(this.qs.map(x => ci(x))); }
 		};
+		if (c !== null) obj.qr = c;
+		return obj;
 	}
 	t.url = url;
 	t.isReady = false;
@@ -103,22 +105,22 @@ function Headless(url) {
 
 }
 
-Headless.jsonRead = function(fname, isj) {
+Headless.jsonRead = function (fname, isj) {
 	let dirname = ptool.dirname(require.main.filename);
-	if(typeof isj==='undefined') isj=true;
+	if (typeof isj === 'undefined') isj = true;
 	let fpath = fname;
-	if(!ptool.isAbsolute(fpath))
+	if (!ptool.isAbsolute(fpath))
 		fpath = ptool.join(dirname, fname);
 	let json = fs.readFileSync(fpath).toString();
-	if(isj) json = JSON.parse(json);
+	if (isj) json = JSON.parse(json);
 	return json;
 };
-Headless.jsonWrite = function(fname, data) {
+Headless.jsonWrite = function (fname, data) {
 	let dirname = ptool.dirname(require.main.filename);
 	let fpath = fname;
-	if(!ptool.isAbsolute(fpath))
+	if (!ptool.isAbsolute(fpath))
 		fpath = ptool.join(dirname, fname);
-	if(typeof data !=='string')
+	if (typeof data !== 'string')
 		data = JSON.stringify(data, null, 3);
 	fs.writeFileSync(fpath, data);
 	return true;

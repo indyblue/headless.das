@@ -132,7 +132,7 @@
 				}
 			});
 		`;
-		const fnTestScript = a => `
+		const fnTestScript = a => Array.isArray(a) ? `
 			new Promise((r, e) => {
 				try {
 					console.log('starting test');
@@ -143,7 +143,7 @@
 					e('caught',err);
 				}
 			});
-		`;
+		` : '';
 
 		let w = document.querySelector('#webview');
 		function wvToggleDev() {
@@ -196,12 +196,18 @@
 					eLabel.textContent = sLabel;
 					fnExecMain(res, err);
 				}).catch(x => {
-					eLabel.textContent = 'testing for ' + sLabel;
-					setTimeout(fnSelf, 1000)
-					eCtls.classList.remove('hide');
-					eRetry.onclick = fnSelf;
-					eSkip.onclick = () => res(x);
-					eCancel.onclick = () => err(x);
+					var skipScript = fnTestScript(obj.qr);
+					(skipScript.length == 0 ? Promise.reject()
+						: wc.executeJavaScript(dbgr + skipScript))
+						.then(x => res(x))
+						.catch(x => {
+							eLabel.textContent = 'testing for ' + sLabel;
+							setTimeout(fnSelf, 1000)
+							eCtls.classList.remove('hide');
+							eRetry.onclick = fnSelf;
+							eSkip.onclick = () => res(x);
+							eCancel.onclick = () => err(x);
+						});
 				});
 			};
 
