@@ -37,9 +37,9 @@ function Headless(url) {
 	};
 
 	t.ci = ci;
-
-	app.once('ready', x => {
-		let win = new BrowserWindow({ width: 800, height: 600, show: false });
+	let win = null;
+	const onReady = x => {
+		win = new BrowserWindow({ width: 800, height: 600, show: false });
 		win.loadURL(`file://${__dirname}/headless.html`)
 		win.on('closed', () => { win = null; });
 		const wc = win.webContents;
@@ -94,9 +94,15 @@ function Headless(url) {
 			t.isReady = true;
 			myEmitter.emit('ready');
 		});
-	});
+	};
 
 	t.readyStart = (url, cb) => {
+		if (win != null) {
+			t.dispose();
+			return 'headless already running - attempting to dispose';
+		}
+		if (app.isReady()) onReady();
+		else app.once('ready', onReady);
 		t.ready(() => {
 			t.start(url, cb);
 		});
@@ -175,9 +181,15 @@ function winReady(win) {
 
 	console.log('winReady start');
 	let retval = new Promise((r, e) => {
-		wc.once('did-finish-load', r);
-		wc.once('did-fail-load', x => e('did-fail-load'));
-		let id = setTimeout(x => e('timeout 15s'), 15000);
+		wc.once('did-finish-load', x => {
+			r(id, 'finish');
+		});
+		wc.once('did-fail-load', x => {
+			e('did-fail-load')
+		});
+		let id = setTimeout(x => {
+			e('timeout 15s')
+		}, 15000);
 		return id;
 	})
 		.catch(x => {
