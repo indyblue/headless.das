@@ -23,13 +23,14 @@
 		<button id='exec-retry'>Retry</button>
 		<button id='exec-skip'>Skip</button>
 		<button id='exec-cancel'>Cancel</button>
-		<br/>
+		<br />
 		<button id='exec-edit'>Edit</button>
 		<textarea id='exec-edit-ta'></textarea>
 	</span>
-	<br/>
+	<br />
 	<span id="exec-label"></span>
-	<webview id="webview" src="http://google.com" webpreferences="webSecurity=no" useragent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36"></webview>
+	<webview id="webview" src="http://google.com" webpreferences="webSecurity=no"
+	 useragent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36"></webview>
 	<script>
 		'use strict';
 		//navigator.userAgent
@@ -157,7 +158,7 @@
 			if (wvdebug) {
 				w.addEventListener('dom-ready', () => w.openDevTools());
 				dbgr = 'debugger;\n'
-			}
+			} else dbgr = '';
 		};
 		eDebug.addEventListener('change', fnDebugChange);
 		fnDebugChange();
@@ -194,10 +195,10 @@
 				}
 				return pr.then(x => {
 					eLabel.textContent = sLabel;
-					fnExecMain(res, err);
+					return fnExecMain(res, err);
 				}).catch(x => {
-					var skipScript = fnTestScript(obj.qr);
-					(skipScript.length == 0 ? Promise.reject()
+					var skipScript = fnTestScript(obj.qs);
+					return (skipScript.length == 0 ? Promise.reject()
 						: wc.executeJavaScript(dbgr + skipScript))
 						.then(x => res(x))
 						.catch(x => {
@@ -213,7 +214,7 @@
 
 			let fnExecMain = (res, err) => {
 				let fnSelf = x => fnExecMain(res, err);
-				wc.executeJavaScript(dbgr + wscript)
+				return wc.executeJavaScript(dbgr + wscript)
 					.then(x => {
 						eCtls.classList.add('hide');
 						console.log(wscript, x);
